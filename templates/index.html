@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Solver de Ecuaciones Diferenciales</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <h2>Que Rollo</h2>
+    <h1>YO PUEDO RESOLVER TUS PROBLEMAS</h1>
+
+    <form method="POST">
+        <input 
+            type="text" 
+            name="equation" 
+            placeholder="Ej: y' + y = 0 o y'' - 4y = 0 o y' + y = sin(x)" 
+            required
+        >
+        <input
+            type="text"
+            name="initials"
+            placeholder="Condiciones iniciales (ej: y(0)=1; y'(0)=0)"
+        >
+        <div style="margin-top:10px;">
+            <label for="x_start">x start:</label>
+            <input type="text" name="x_start" placeholder="0" style="width:70px;">
+            <label for="x_end">x end:</label>
+            <input type="text" name="x_end" placeholder="10" style="width:70px;">
+        </div>
+        <button type="submit" style="margin-top:10px;">Resolver</button>
+    </form>
+
+    {% if solution_latex %}
+        <div class="result">
+            <h2>Aquí está tu bendita respuesta:</h2>
+            <div>\[ {{ solution_latex|safe }} \]</div>
+        </div>
+    {% elif solution %}
+        <div class="result">
+            <h2>Solución:</h2>
+            <pre style="text-align:left; white-space:pre-wrap;">{{ solution }}</pre>
+        </div>
+    {% endif %}
+
+    {% if error %}
+        <div class="error">
+            <p>{{ error }}</p>
+        </div>
+    {% endif %}
+
+    {% if plot_path %}
+        <div class="result">
+            <h2>Gráfica (solución numérica):</h2>
+            <img src="{{ plot_path }}" alt="Solución numérica" style="max-width:90%; height:auto; border-radius:8px;">
+        </div>
+    {% endif %}
+
+    <div class="examples">
+        <h3>Ejemplos que puedes probar:</h3>
+        <ul>
+            <li>y' + y = 0</li>
+            <li>y'' - 4y = 0</li>
+            <li>y' - 3y = 0</li>
+            <li>y' + y = sin(x)</li>
+            <li>y'' + y = exp(x)</li>
+        </ul>
+    </div>
+</div>
+
+</body>
+</html>
