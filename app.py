@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, url_for
-from sympy import symbols, Function, Eq, dsolve, Derivative, sin, cos, exp, tan, log, solve
-from sympy.parsing.sympy_parser import parse_expr
 import sympy as sp
+from sympy import symbols, Function, Eq, dsolve, Derivative, sin, cos, exp, tan, log, solve, sqrt, pi, E
+from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application, convert_xor
 import re
 import numpy as np
 import matplotlib
@@ -12,57 +12,136 @@ import time
 
 app = Flask(__name__)
 
-# ================= PARSER =================
-def parse_human_input(user_input):
+# ============================================================
+#  PARSER ULTRA-ROBUSTO
+# ============================================================
+
+TRANSFORMATIONS = standard_transformations + (
+    implicit_multiplication_application,
+    convert_xor,
+)
+
+def normalize_input(s: str) -> str:
+    """Limpia y normaliza la entrada antes de parsear."""
+    # Caracteres especiales tipográficos
+    s = s.replace('\u2018', "'").replace('\u2019', "'")
+    s = s.replace('\u2212', '-').replace('\u00b2', '**2').replace('\u00b3', '**3')
+    s = s.replace('^', '**')
+    s = s.strip()
+
+    # Normalizar espacios alrededor de = y operadores
+    s = re.sub(r'\s+', ' ', s)
+    return s
+
+
+def replace_derivatives(s: str) -> str:
+    """
+    Convierte múltiples notaciones de derivadas a Derivative(...).
+    Soporta: y'', y', y''', d2y/dx2, d^2y/dx^2, dy/dx, etc.
+    """
+    # d^n y / dx^n  o  d(n)y/dx(n)
+    s = re.sub(r"d\^?(\d+)\s*y\s*/\s*d[xt]\^?\1", lambda m: f"Derivative(y(x), x, {m.group(1)})", s)
+    # dy/dx  o  dy/dt
+    s = re.sub(r"dy\s*/\s*d[xt]", "Derivative(y(x), x)", s)
+    # y''' (3 primes)
+    s = re.sub(r"y\s*'''", "Derivative(y(x), x, 3)", s)
+    # y'' (2 primes)
+    s = re.sub(r"y\s*''", "Derivative(y(x), x, 2)", s)
+    # y'  (1 prime)
+    s = re.sub(r"y\s*'", "Derivative(y(x), x)", s)
+    return s
+
+
+def replace_functions(s: str) -> str:
+    """Expande alias de funciones comunes."""
+    aliases = {
+        r'\bsen\b': 'sin',
+        r'\bSen\b': 'sin',
+        r'\bSin\b': 'sin',
+        r'\bCos\b': 'cos',
+        r'\bTan\b': 'tan',
+        r'\bExp\b': 'exp',
+        r'\bLn\b':  'log',
+        r'\bln\b':  'log',
+        r'\bLog\b': 'log',
+        r'\bSqrt\b': 'sqrt',
+        r'\bsqrt\b': 'sqrt',
+        r'\bpi\b': 'pi',
+        r'\bPI\b': 'pi',
+    }
+    for pat, repl in aliases.items():
+        s = re.sub(pat, repl, s)
+    return s
+
+
+def fix_implicit_multiplication(s: str) -> str:
+    """Agrega * donde falta (2y → 2*y, 3sin → 3*sin, etc.)."""
+    # número seguido de letra o paréntesis
+    s = re.sub(r'(\d+\.?\d*)\s*([a-zA-Z\(])', r'\1*\2', s)
+    # ) seguido de letra o número o (
+    s = re.sub(r'\)\s*([a-zA-Z0-9\(])', r')*\1', s)
+    return s
+
+
+def replace_standalone_y(s: str) -> str:
+    """y sola (sin paréntesis ni prima) → y(x)."""
+    return re.sub(r'\by\b(?!\s*[\(\'\'])', 'y(x)', s)
+
+
+def parse_human_input(user_input: str) -> Eq:
+    """
+    Parser principal. Intenta múltiples estrategias para interpretar
+    la ecuación diferencial escrita por el usuario.
+    """
     x = symbols('x')
     y = Function('y')
 
-    s = user_input.strip()
-    s = s.replace('\u2018', "'")
-    s = s.replace('\u2019', "'")
-    s = s.replace('\u2212', '-')
-    s = s.replace("^", "**")
+    local_dict = {
+        'x': x, 'y': y,
+        'sin': sin, 'cos': cos, 'exp': exp,
+        'tan': tan, 'log': log, 'sqrt': sqrt,
+        'pi': pi, 'e': E,
+        'Derivative': Derivative,
+        'y': y,
+    }
 
-    # Derivadas
-    s = re.sub(r"y\s*''", "Derivative(y(x), x, x)", s)
-    s = re.sub(r"y\s*'",  "Derivative(y(x), x)",    s)
+    s = normalize_input(user_input)
+    s = replace_functions(s)
+    s = replace_derivatives(s)
+    s = fix_implicit_multiplication(s)
+    s = replace_standalone_y(s)
 
-    # Multiplicaciones implícitas
-    s = re.sub(r"(?P<num>\d+(?:\.\d+)?)\s*(?=[A-Za-z\(])", r"\g<num>*", s)
-    s = re.sub(r"\)\s*(?=[A-Za-z0-9\(])", r")*", s)
-    s = re.sub(r"(?<=[0-9\)])\s*(?=[A-Za-z\(])", r"*", s)
-
-    # y → y(x)
-    s = re.sub(r"\by\b(?!\s*\()", "y(x)", s)
-
-    # Separar ecuación
+    # Separar lhs = rhs
     if '=' in s:
         lhs_s, rhs_s = s.split('=', 1)
     else:
         lhs_s, rhs_s = s, '0'
 
-    local_dict = {
-        'x': x, 'y': y,
-        'sin': sin, 'cos': cos, 'exp': exp,
-        'tan': tan, 'log': log,
-        'Derivative': Derivative,
-    }
-
-    lhs = parse_expr(lhs_s, local_dict=local_dict)
-    rhs = parse_expr(rhs_s, local_dict=local_dict)
-
-    return Eq(lhs, rhs)
+    try:
+        lhs = parse_expr(lhs_s, local_dict=local_dict, transformations=TRANSFORMATIONS)
+        rhs = parse_expr(rhs_s, local_dict=local_dict, transformations=TRANSFORMATIONS)
+        return Eq(lhs, rhs)
+    except Exception as e:
+        raise ValueError(f"No se pudo interpretar la ecuación: '{user_input}'\nError técnico: {e}")
 
 
-# ================= CONDICIONES INICIALES =================
-def parse_initial_conditions(initials_text):
-    if not initials_text:
+# ============================================================
+#  CONDICIONES INICIALES
+# ============================================================
+
+def parse_initial_conditions(text: str):
+    if not text or not text.strip():
         return None
 
     ic_regex = re.compile(
-        r"y(?P<primes>'*)\((?P<x>[^)]+)\)\s*=\s*(?P<val>[-+]?\d*\.?\d+)"
+        r"y(?P<primes>'*)\s*\(\s*(?P<x>[+-]?\d*\.?\d+)\s*\)\s*=\s*(?P<val>[+-]?\d*\.?\d+)"
     )
-    matches = ic_regex.finditer(initials_text)
+    matches = list(ic_regex.finditer(text))
+
+    if not matches:
+        # Intentar formato y(0)=0, y'(0)=1 sin espacios
+        text2 = text.replace(' ', '')
+        matches = list(ic_regex.finditer(text2))
 
     ics = {}
     x0 = None
@@ -77,82 +156,73 @@ def parse_initial_conditions(initials_text):
     return (x0, ics) if ics else None
 
 
-# ================= MÉTODO DE EULER =================
-def euler_solve(f_system, x0, y0, x_end, n_steps=500):
+# ============================================================
+#  MÉTODO DE EULER
+# ============================================================
+
+def euler_solve(f_system, x0, y0, x_end, n_steps=1000):
     """
-    Resuelve un sistema de ODEs de primer orden usando el Método de Euler.
+    Resuelve un sistema de ODEs con el Método de Euler explícito.
 
-    Fórmula:
-        Y_{n+1} = Y_n + h * f(x_n, Y_n)
-
-    Parámetros:
-        f_system : función que recibe (x, Y) y devuelve dY/dx
-        x0       : valor inicial de x
-        y0       : vector de condiciones iniciales [y(x0), y'(x0), ...]
-        x_end    : valor final de x
-        n_steps  : número de pasos (más pasos = mayor precisión)
-
-    Retorna:
-        xs : array de valores de x
-        ys : array de soluciones y(x)
+    Y_{n+1} = Y_n + h · f(x_n, Y_n)
     """
-    h  = (x_end - x0) / n_steps          # tamaño de paso
+    h  = (x_end - x0) / n_steps
+    n  = len(y0)
     xs = np.zeros(n_steps + 1)
-    ys = np.zeros((n_steps + 1, len(y0)))
+    ys = np.zeros((n_steps + 1, n))
 
-    xs[0]  = x0
-    ys[0]  = y0
+    xs[0] = x0
+    ys[0] = y0
 
     for i in range(n_steps):
-        dY       = f_system(xs[i], ys[i])   # pendiente en el punto actual
-        ys[i+1]  = ys[i] + h * dY           # paso de Euler
-        xs[i+1]  = xs[i] + h
+        try:
+            dY = f_system(xs[i], ys[i])
+            ys[i+1] = ys[i] + h * np.array(dY)
+        except Exception:
+            ys[i+1] = ys[i]   # mantener último valor si hay error numérico
+        xs[i+1] = xs[i] + h
 
     return xs, ys
 
 
-# ================= NUMÉRICO (con Euler) =================
+# ============================================================
+#  SOLUCIÓN NUMÉRICA + GRÁFICA
+# ============================================================
+
 def numeric_solve_and_plot(eq, initials_text=None, x_span=(0, 10)):
     x = symbols('x')
     y = Function('y')
 
     expr = sp.simplify(eq.lhs - eq.rhs)
 
-    # Detectar orden máximo
+    # Detectar orden
     derivatives = list(expr.atoms(sp.Derivative))
     if not derivatives:
         raise ValueError(
-            "No se detectaron derivadas. "
-            "Escribe la ecuación usando y', y'' o y(x) y sus derivadas."
+            "No se detectaron derivadas en la ecuación.\n"
+            "Ejemplos válidos: y' = x + y   |   y'' + 4y = 0   |   y' - 2y = e^x"
         )
     max_order = max(d.derivative_count for d in derivatives)
 
-    # Despejar la derivada de mayor orden
+    # Despejar derivada de mayor orden
     highest = [d for d in derivatives if d.derivative_count == max_order][0]
     sol_highest = solve(sp.Eq(expr, 0), highest)
     if not sol_highest:
-        raise ValueError("No se pudo despejar la derivada principal de la ecuación.")
+        raise ValueError("No se pudo despejar la derivada principal. Reformula la ecuación.")
     rhs_expr = sol_highest[0]
 
-    # Sustituir derivadas por variables auxiliares y0, y1, ..., y_{n-1}
+    # Variables auxiliares
     y_syms = [sp.Symbol(f'_y{i}') for i in range(max_order)]
-    replacements = {
-        sp.Derivative(y(x), (x, k)): y_syms[k]
-        for k in range(max_order)
-    }
+    replacements = {sp.Derivative(y(x), (x, k)): y_syms[k] for k in range(max_order)}
     rhs_expr = rhs_expr.subs(replacements)
 
-    # Convertir a función numérica
-    f_rhs = sp.lambdify((x, *y_syms), rhs_expr, 'numpy')
+    f_rhs = sp.lambdify([x, *y_syms], rhs_expr, modules='numpy')
 
-    # Sistema de ecuaciones de primer orden:
-    #   Y = [y, y', y'', ..., y^(n-1)]
-    #   dY/dx = [y', y'', ..., y^(n-1), f_rhs(x, Y)]
     def f_system(xi, Yi):
         dY = np.zeros(max_order)
         for k in range(max_order - 1):
-            dY[k] = Yi[k + 1]           # y_k' = y_{k+1}
-        dY[-1] = f_rhs(xi, *Yi)         # y_{n-1}' = f(x, Y)
+            dY[k] = Yi[k + 1]
+        dY[-1] = float(f_rhs(xi, *Yi))
         return dY
 
     # Condiciones iniciales
@@ -164,73 +234,78 @@ def numeric_solve_and_plot(eq, initials_text=None, x_span=(0, 10)):
         x0 = x_span[0]
         y0 = [1.0] + [0.0] * (max_order - 1)
 
-    # ── Aplicar Método de Euler ──
-    xs, ys = euler_solve(f_system, x0, y0, x_span[1], n_steps=500)
+    xs, ys = euler_solve(f_system, x0, y0, x_span[1], n_steps=1000)
 
     # ── Gráfica ──
-    fig, ax = plt.subplots(figsize=(8, 4))
-    fig.patch.set_facecolor('#161622')
-    ax.set_facecolor('#0e0e18')
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    fig.patch.set_facecolor('#10101c')
+    ax.set_facecolor('#10101c')
 
-    ax.plot(xs, ys[:, 0], color='#ff7a18', linewidth=2, label='y(x) — Euler')
-    ax.set_xlabel('x', color='#aaaacc', fontsize=10)
-    ax.set_ylabel('y(x)', color='#aaaacc', fontsize=10)
-    ax.tick_params(colors='#5a5a78')
+    colors = ['#f97316', '#38bdf8', '#a78bfa', '#34d399']
+    labels = ['y(x)', "y'(x)", "y''(x)", "y'''(x)"]
+    for i in range(min(ys.shape[1], 4)):
+        ax.plot(xs, ys[:, i], color=colors[i], linewidth=2, label=labels[i])
+
+    ax.set_xlabel('x', color='#94a3b8', fontsize=11)
+    ax.set_ylabel('y(x)', color='#94a3b8', fontsize=11)
+    ax.tick_params(colors='#475569', labelsize=9)
     for spine in ax.spines.values():
-        spine.set_edgecolor('#2a2a3e')
-    ax.grid(True, color='#2a2a3e', linestyle='--', linewidth=0.6)
-    ax.legend(facecolor='#1e1e2e', edgecolor='#2a2a3e', labelcolor='#dddde8', fontsize=9)
+        spine.set_edgecolor('#1e293b')
+    ax.grid(True, color='#1e293b', linestyle='--', linewidth=0.6, alpha=0.8)
+    ax.legend(facecolor='#1e293b', edgecolor='#334155', labelcolor='#e2e8f0', fontsize=9)
 
     plt.tight_layout()
-
     os.makedirs('static/plots', exist_ok=True)
-    filename = f"plot_{int(time.time())}.png"
+    filename = f"plot_{int(time.time()*1000)}.png"
     path = f"static/plots/{filename}"
-    plt.savefig(path, dpi=120)
+    plt.savefig(path, dpi=130, bbox_inches='tight')
     plt.close()
 
-    return f"plots/{filename}"
+    return f"plots/{filename}", max_order
 
 
-# ================= ROUTE =================
+# ============================================================
+#  ROUTE
+# ============================================================
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     solution       = None
     solution_latex = None
     error          = None
     plot_path      = None
+    eq_display     = None
+    numeric_info   = None
 
     if request.method == 'POST':
         try:
-            eq_input = request.form['equation']
-            initials = request.form.get('initials', '')
+            eq_input = request.form.get('equation', '').strip()
+            initials = request.form.get('initials', '').strip()
 
-            x_start_raw = request.form.get('x_start', '').strip()
-            x_end_raw   = request.form.get('x_end',   '').strip()
-            try:
-                x_start = float(x_start_raw) if x_start_raw else 0.0
-            except ValueError:
-                x_start = 0.0
-            try:
-                x_end = float(x_end_raw) if x_end_raw else 10.0
-            except ValueError:
-                x_end = 10.0
+            x_start = float(request.form.get('x_start', '0') or '0')
+            x_end   = float(request.form.get('x_end',  '10') or '10')
+            if x_end <= x_start:
+                x_end = x_start + 10
 
             eq = parse_human_input(eq_input)
+            eq_display = sp.latex(eq)
 
             # Intentar solución simbólica primero
             try:
                 sol = dsolve(eq)
                 solution = str(sol)
-                try:
-                    solution_latex = sp.latex(sol)
-                except Exception:
-                    solution_latex = None
+                solution_latex = sp.latex(sol)
             except Exception:
-                # Si falla, usar Método de Euler
-                plot = numeric_solve_and_plot(eq, initials, (x_start, x_end))
+                # Fallback: Método de Euler
+                plot, order = numeric_solve_and_plot(eq, initials, (x_start, x_end))
                 plot_path = url_for('static', filename=plot)
                 solution  = "Solución numérica por Método de Euler"
+                numeric_info = {
+                    'order': order,
+                    'x_start': x_start,
+                    'x_end': x_end,
+                    'steps': 1000,
+                }
 
         except Exception as e:
             error = str(e)
@@ -240,9 +315,11 @@ def index():
         solution=solution,
         solution_latex=solution_latex,
         error=error,
-        plot_path=plot_path
+        plot_path=plot_path,
+        eq_display=eq_display,
+        numeric_info=numeric_info,
     )
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
