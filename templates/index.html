@@ -2,74 +2,146 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Solver de Ecuaciones Diferenciales</title>
+    <title>Solver Ecuaciones Diferenciales</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
 
-<div class="container">
-    <h2>Que Rollo</h2>
-    <h1>YO PUEDO RESOLVER TUS PROBLEMAS</h1>
+<div class="page">
 
-    <form method="POST">
-        <input 
-            type="text" 
-            name="equation" 
-            placeholder="Ej: y' + y = 0 o y'' - 4y = 0 o y' + y = sin(x)" 
-            required
-        >
-        <input
-            type="text"
-            name="initials"
-            placeholder="Condiciones iniciales (ej: y(0)=1; y'(0)=0)"
-        >
-        <div style="margin-top:10px;">
-            <label for="x_start">x start:</label>
-            <input type="text" name="x_start" placeholder="0" style="width:70px;">
-            <label for="x_end">x end:</label>
-            <input type="text" name="x_end" placeholder="10" style="width:70px;">
-        </div>
-        <button type="submit" style="margin-top:10px;">Resolver</button>
-    </form>
+    <header>
+        <p class="header-sub">SOLVER INTELIGENTE</p>
+        <h1 class="header-title">
+    Resuelve ecuaciones diferenciales<br>
+    <span style="color:#60a5fa;">de forma inteligente</span>
+</h1>
+    </header>
+
+    <div class="form-card">
+
+        <form method="POST">
+
+            <div class="input-row">
+                <input
+                    type="text"
+                    name="equation"
+                    class="input-main"
+                    placeholder="Ej: y' + y = 0  —  y'' - 4y = 0  —  y' + y = sin(x)"
+                    required
+                    value="{{ request.form.get('equation', '') }}"
+                >
+                <input
+                    type="text"
+                    name="initials"
+                    class="input-main"
+                    placeholder="Condiciones iniciales (ej: y(0)=1; y'(0)=0)"
+                    value="{{ request.form.get('initials', '') }}"
+                >
+            </div>
+
+            <div class="range-row">
+                <div class="range-field">
+                    <label>x start</label>
+                    <input type="text" name="x_start" placeholder="0" value="{{ request.form.get('x_start', '') }}">
+                </div>
+                <div class="range-field">
+                    <label>x end</label>
+                    <input type="text" name="x_end" placeholder="10" value="{{ request.form.get('x_end', '') }}">
+                </div>
+            </div>
+
+            <button class="btn-solve" type="submit">Resolver</button>
+
+        </form>
+
+    </div>
 
     {% if solution_latex %}
-        <div class="result">
-            <h2>Aquí está tu bendita respuesta:</h2>
-            <div>\[ {{ solution_latex|safe }} \]</div>
+    <div class="result-block">
+        <div class="result-header">
+            <span class="result-title">Respuesta correcta:</span>
+            <span class="result-badge">simbólica ✓</span>
         </div>
+        <div class="result-body">
+            \[ {{ solution_latex|safe }} \]
+        </div>
+    </div>
     {% elif solution %}
-        <div class="result">
-            <h2>Solución:</h2>
-            <pre style="text-align:left; white-space:pre-wrap;">{{ solution }}</pre>
+    <div class="result-block">
+        <div class="result-header">
+            <span class="result-title">Respuesta procesada:</span>
+            <span class="result-badge">numérica ✓</span>
         </div>
+        <div class="result-body">
+            <pre class="result-text">{{ solution }}</pre>
+        </div>
+    </div>
     {% endif %}
 
     {% if error %}
-        <div class="error">
-            <p>{{ error }}</p>
-        </div>
+    <div class="error-block">
+        <div class="error-label">algo salió mal</div>
+        <div class="error-msg">{{ error }}</div>
+    </div>
     {% endif %}
 
     {% if plot_path %}
-        <div class="result">
-            <h2>Gráfica (solución numérica):</h2>
-            <img src="{{ plot_path }}" alt="Solución numérica" style="max-width:90%; height:auto; border-radius:8px;">
+    <div class="plot-block">
+        <div class="plot-header">
+            <span class="plot-title">Gráfica — solución numérica</span>
         </div>
+        <div class="plot-body">
+            <img src="{{ plot_path }}" alt="Solución numérica">
+        </div>
+    </div>
     {% endif %}
 
-    <div class="examples">
-        <h3>Ejemplos que puedes probar:</h3>
-        <ul>
-            <li>y' + y = 0</li>
-            <li>y'' - 4y = 0</li>
-            <li>y' - 3y = 0</li>
-            <li>y' + y = sin(x)</li>
-            <li>y'' + y = exp(x)</li>
-        </ul>
+    <div class="examples-section">
+        <p class="examples-title">Ejemplos que puedes probar:</p>
+        <div class="examples-grid">
+            <div class="example-card" onclick="setEq(this)">
+                <code>y' + y = 0</code>
+                <small>decaimiento exponencial</small>
+            </div>
+            <div class="example-card" onclick="setEq(this)">
+                <code>y'' - 4y = 0</code>
+                <small>oscilador libre</small>
+            </div>
+            <div class="example-card" onclick="setEq(this)">
+                <code>y' + y = sin(x)</code>
+                <small>forzada de 1er orden</small>
+            </div>
+            <div class="example-card" onclick="setEq(this)">
+                <code>y'' + y = exp(x)</code>
+                <small>forzada de 2do orden</small>
+            </div>
+            <div class="example-card" onclick="setEq(this)">
+                <code>y' - 3y = 0</code>
+                <small>crecimiento exponencial</small>
+            </div>
+            <div class="example-card" onclick="setEq(this)">
+                <code>y'' + 2y' + y = 0</code>
+                <small>amortiguamiento crítico</small>
+            </div>
+        </div>
     </div>
+
+    <footer>
+        hecho con sympy · scipy · matplotlib
+    </footer>
+
 </div>
+
+<script>
+    function setEq(el) {
+        const code = el.querySelector('code').textContent;
+        document.querySelector('input[name="equation"]').value = code;
+        document.querySelector('input[name="equation"]').focus();
+    }
+</script>
 
 </body>
 </html>
