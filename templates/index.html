@@ -15,9 +15,9 @@
     <header>
         <p class="header-sub">SOLVER INTELIGENTE</p>
         <h1 class="header-title">
-    Resuelve ecuaciones diferenciales<br>
-    <span style="color:#60a5fa;">de forma inteligente</span>
-</h1>
+            Resuelve ecuaciones diferenciales<br>
+            <span style="color:#60a5fa;">de forma inteligente</span>
+        </h1>
     </header>
 
     <div class="form-card">
@@ -51,6 +51,16 @@
                     <label>x end</label>
                     <input type="text" name="x_end" placeholder="10" value="{{ request.form.get('x_end', '') }}">
                 </div>
+                <!-- ↓ NUEVO: campo para evaluar un punto específico -->
+                <div class="range-field">
+                    <label>Evaluar en x =</label>
+                    <input
+                        type="text"
+                        name="x_eval"
+                        placeholder="Ej: 2"
+                        value="{{ request.form.get('x_eval', '') }}"
+                    >
+                </div>
             </div>
 
             <button class="btn-solve" type="submit">Resolver</button>
@@ -81,6 +91,33 @@
     </div>
     {% endif %}
 
+    <!-- ↓ NUEVO: bloque de resultado del punto evaluado -->
+    {% if point_result %}
+    <div class="result-block" style="border-color: #f97316;">
+        <div class="result-header">
+            <span class="result-title">Punto evaluado:</span>
+            <span class="result-badge" style="background:#f97316;">y({{ point_result.x }}) ✓</span>
+        </div>
+        <div class="result-body">
+            {% if point_result.y is not none %}
+                <div style="text-align:center; padding: 1rem 0;">
+                    <span style="font-size:1.6rem; color:#f97316; font-family:'JetBrains Mono', monospace; font-weight:600;">
+                        y({{ point_result.x }}) ≈ {{ point_result.y }}
+                    </span>
+                    <br>
+                    <small style="color:#64748b; margin-top:0.4rem; display:block;">
+                        método: {{ point_result.method }}
+                    </small>
+                </div>
+            {% else %}
+                <div class="error-msg" style="padding:0.8rem;">
+                    ⚠ {{ point_result.error }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     {% if error %}
     <div class="error-block">
         <div class="error-label">algo salió mal</div>
@@ -90,6 +127,42 @@
 
     {% if plot_path %}
     <div class="plot-block">
+        {% if table_data %}
+<div class="result-block">
+    <div class="result-header">
+        <span class="result-title">Tabla — Método de Euler</span>
+        <span class="result-badge">numérica ✓</span>
+    </div>
+
+    <div class="result-body" style="overflow-x:auto;">
+        <table style="
+            width:100%;
+            border-collapse: collapse;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        ">
+            <thead>
+                <tr style="background:#1e293b; color:#e2e8f0;">
+                    <th style="padding:8px;">i</th>
+                    <th style="padding:8px;">x</th>
+                    <th style="padding:8px;">y</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in table_data %}
+                <tr style="border-bottom:1px solid #1e293b;">
+                    <td style="padding:6px; text-align:center;">{{ row.i }}</td>
+                    <td style="padding:6px; text-align:center;">{{ row.x }}</td>
+                    <td style="padding:6px; text-align:center; color:#38bdf8;">
+                        {{ row.y }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
         <div class="plot-header">
             <span class="plot-title">Gráfica — solución numérica</span>
         </div>
