@@ -37,7 +37,7 @@
                     type="text"
                     name="initials"
                     class="input-main"
-                    placeholder="Condiciones iniciales (ej: y(0)=1; y'(0)=0)"
+                    placeholder="Condiciones iniciales: y(0)=693.36; y'(0)=0"
                     value="{{ request.form.get('initials', '') }}"
                 >
             </div>
@@ -51,13 +51,12 @@
                     <label>x end</label>
                     <input type="text" name="x_end" placeholder="10" value="{{ request.form.get('x_end', '') }}">
                 </div>
-                <!-- ↓ NUEVO: campo para evaluar un punto específico -->
                 <div class="range-field">
                     <label>Evaluar en x =</label>
                     <input
                         type="text"
                         name="x_eval"
-                        placeholder="Ej: 2"
+                        placeholder="Ej: 4"
                         value="{{ request.form.get('x_eval', '') }}"
                     >
                 </div>
@@ -69,10 +68,11 @@
 
     </div>
 
+    <!-- SOLUCIÓN GENERAL SIMBÓLICA -->
     {% if solution_latex %}
     <div class="result-block">
         <div class="result-header">
-            <span class="result-title">Respuesta correcta:</span>
+            <span class="result-title">Solución general:</span>
             <span class="result-badge">simbólica ✓</span>
         </div>
         <div class="result-body">
@@ -91,23 +91,61 @@
     </div>
     {% endif %}
 
-    <!-- ↓ NUEVO: bloque de resultado del punto evaluado -->
+    <!-- SOLUCIÓN PARTICULAR (con condiciones iniciales) -->
+    {% if particular_latex %}
+    <div class="result-block" style="border-color: #22c55e;">
+        <div class="result-header">
+            <span class="result-title">Solución particular:</span>
+            <span class="result-badge" style="background: rgba(34,197,94,0.15); color:#22c55e; border:1px solid rgba(34,197,94,0.3);">C resuelto con condiciones iniciales ✓</span>
+        </div>
+        <div class="result-body">
+            \[ {{ particular_latex|safe }} \]
+            <small style="color:#64748b; display:block; margin-top:0.5rem;">
+                La constante fue determinada usando las condiciones iniciales proporcionadas.
+            </small>
+        </div>
+    </div>
+    {% elif solution_latex and not particular_latex and request.form.get('initials') %}
+    <div class="result-block" style="border-color: #f97316;">
+        <div class="result-header">
+            <span class="result-title">Aviso:</span>
+            <span class="result-badge" style="color:#f97316;">condiciones iniciales</span>
+        </div>
+        <div class="result-body">
+            <small style="color:#94a3b8;">No se pudo aplicar la condición inicial a la solución simbólica. Se usó en la simulación numérica de Euler.</small>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- PUNTO EVALUADO -->
     {% if point_result %}
     <div class="result-block" style="border-color: #f97316;">
         <div class="result-header">
             <span class="result-title">Punto evaluado:</span>
-            <span class="result-badge" style="background:#f97316;">y({{ point_result.x }}) ✓</span>
+            <span class="result-badge" style="background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.3);">y({{ point_result.x }}) ✓</span>
         </div>
         <div class="result-body">
             {% if point_result.y is not none %}
-                <div style="text-align:center; padding: 1rem 0;">
-                    <span style="font-size:1.6rem; color:#f97316; font-family:'JetBrains Mono', monospace; font-weight:600;">
-                        y({{ point_result.x }}) ≈ {{ point_result.y }}
-                    </span>
-                    <br>
-                    <small style="color:#64748b; margin-top:0.4rem; display:block;">
-                        método: {{ point_result.method }}
-                    </small>
+                <div style="display:flex; flex-direction:column; align-items:center; gap:1rem; padding:1rem 0;">
+
+                    <!-- Simbólico (solución particular) -->
+                    {% if point_result.y_symbolic is not none %}
+                    <div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.25); border-radius:12px; padding:1rem 2rem; text-align:center;">
+                        <div style="font-size:0.65rem; color:#22c55e; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.4rem;">Solución Particular (Simbólica)</div>
+                        <span style="font-size:1.8rem; color:#22c55e; font-family:'JetBrains Mono', monospace; font-weight:600;">
+                            y({{ point_result.x }}) = {{ point_result.y_symbolic }}
+                        </span>
+                        <div style="font-size:0.7rem; color:#64748b; margin-top:0.3rem;">con C resuelto desde condiciones iniciales</div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Numérico (Euler) -->
+                    <div style="background:rgba(249,115,22,0.08); border:1px solid rgba(249,115,22,0.25); border-radius:12px; padding:1rem 2rem; text-align:center;">
+                        <div style="font-size:0.65rem; color:#f97316; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.4rem;">Método de Euler (Numérico)</div>
+                        <span style="font-size:1.8rem; color:#f97316; font-family:'JetBrains Mono', monospace; font-weight:600;">
+                            y({{ point_result.x }}) ≈ {{ point_result.y }}
+                        </span>
+                    </div>
                 </div>
             {% else %}
                 <div class="error-msg" style="padding:0.8rem;">
@@ -128,41 +166,33 @@
     {% if plot_path %}
     <div class="plot-block">
         {% if table_data %}
-<div class="result-block">
-    <div class="result-header">
-        <span class="result-title">Tabla — Método de Euler</span>
-        <span class="result-badge">numérica ✓</span>
-    </div>
-
-    <div class="result-body" style="overflow-x:auto;">
-        <table style="
-            width:100%;
-            border-collapse: collapse;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
-        ">
-            <thead>
-                <tr style="background:#1e293b; color:#e2e8f0;">
-                    <th style="padding:8px;">i</th>
-                    <th style="padding:8px;">x</th>
-                    <th style="padding:8px;">y</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in table_data %}
-                <tr style="border-bottom:1px solid #1e293b;">
-                    <td style="padding:6px; text-align:center;">{{ row.i }}</td>
-                    <td style="padding:6px; text-align:center;">{{ row.x }}</td>
-                    <td style="padding:6px; text-align:center; color:#38bdf8;">
-                        {{ row.y }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
+        <div class="result-block">
+            <div class="result-header">
+                <span class="result-title">Tabla — Método de Euler</span>
+                <span class="result-badge">numérica ✓</span>
+            </div>
+            <div class="result-body" style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#1e293b; color:#e2e8f0;">
+                            <th style="padding:8px;">i</th>
+                            <th style="padding:8px;">x</th>
+                            <th style="padding:8px;">y</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in table_data %}
+                        <tr style="border-bottom:1px solid #1e293b;">
+                            <td style="padding:6px; text-align:center;">{{ row.i }}</td>
+                            <td style="padding:6px; text-align:center;">{{ row.x }}</td>
+                            <td style="padding:6px; text-align:center; color:#38bdf8;">{{ row.y }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
         <div class="plot-header">
             <span class="plot-title">Gráfica — solución numérica</span>
         </div>
@@ -175,27 +205,27 @@
     <div class="examples-section">
         <p class="examples-title">Ejemplos que puedes probar:</p>
         <div class="examples-grid">
-            <div class="example-card" onclick="setEq(this)">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=693.36">
+                <code>y' - y = 0</code>
+                <small>con y(0)=693.36</small>
+            </div>
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1">
                 <code>y' + y = 0</code>
                 <small>decaimiento exponencial</small>
             </div>
-            <div class="example-card" onclick="setEq(this)">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=0; y'(0)=1">
                 <code>y'' - 4y = 0</code>
                 <small>oscilador libre</small>
             </div>
-            <div class="example-card" onclick="setEq(this)">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=0">
                 <code>y' + y = sin(x)</code>
                 <small>forzada de 1er orden</small>
             </div>
-            <div class="example-card" onclick="setEq(this)">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1; y'(0)=0">
                 <code>y'' + y = exp(x)</code>
                 <small>forzada de 2do orden</small>
             </div>
-            <div class="example-card" onclick="setEq(this)">
-                <code>y' - 3y = 0</code>
-                <small>crecimiento exponencial</small>
-            </div>
-            <div class="example-card" onclick="setEq(this)">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1; y'(0)=0">
                 <code>y'' + 2y' + y = 0</code>
                 <small>amortiguamiento crítico</small>
             </div>
@@ -211,7 +241,11 @@
 <script>
     function setEq(el) {
         const code = el.querySelector('code').textContent;
+        const ic = el.getAttribute('data-ic') || '';
         document.querySelector('input[name="equation"]').value = code;
+        if (ic) {
+            document.querySelector('input[name="initials"]').value = ic;
+        }
         document.querySelector('input[name="equation"]').focus();
     }
 </script>
