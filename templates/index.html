@@ -2,253 +2,798 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Solver Ecuaciones Diferenciales</title>
+    <title>Solver — Ecuaciones Diferenciales</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        :root {
+            --bg:        #080f1e;
+            --surface:   #0d1a2d;
+            --border:    #1a2d45;
+            --border2:   #243447;
+            --text:      #c8d8e8;
+            --muted:     #4a6580;
+            --accent:    #38bdf8;
+            --accent2:   #22d3ee;
+            --green:     #34d399;
+            --orange:    #fb923c;
+            --mono:      'JetBrains Mono', monospace;
+            --display:   'Syne', sans-serif;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--mono);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 3rem 2rem 5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header-sub {
+            font-size: 0.65rem;
+            letter-spacing: 0.25em;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+            opacity: 0.8;
+        }
+
+        .header-title {
+            font-family: var(--display);
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            color: #e8f4ff;
+            line-height: 1.2;
+            font-weight: 800;
+        }
+
+        .form-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 700px) {
+            .input-row { grid-template-columns: 1fr; }
+        }
+
+        .input-main {
+            background: var(--bg);
+            border: 1px solid var(--border2);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            font-family: var(--mono);
+            font-size: 0.85rem;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-main:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(56,189,248,0.1);
+        }
+        .input-main::placeholder { color: var(--muted); }
+
+        .range-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        @media (max-width: 700px) {
+            .range-row { grid-template-columns: 1fr 1fr; }
+        }
+
+        .range-field label {
+            display: block;
+            font-size: 0.65rem;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin-bottom: 0.4rem;
+        }
+
+        .range-field input {
+            background: var(--bg);
+            border: 1px solid var(--border2);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 0.6rem 0.85rem;
+            font-family: var(--mono);
+            font-size: 0.82rem;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .range-field input:focus { border-color: var(--accent); }
+
+        .btn-solve {
+            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+            border: none;
+            color: #050d1a;
+            border-radius: 10px;
+            padding: 0.8rem 2.5rem;
+            font-family: var(--display);
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.05em;
+            transition: transform 0.15s, box-shadow 0.15s;
+            width: 100%;
+        }
+        .btn-solve:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(56,189,248,0.25);
+        }
+
+        .result-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.9rem 1.4rem;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .result-title {
+            font-family: var(--display);
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #e8f4ff;
+            letter-spacing: 0.04em;
+        }
+
+        .result-badge {
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            background: rgba(56,189,248,0.12);
+            color: var(--accent);
+            border: 1px solid rgba(56,189,248,0.25);
+            text-transform: uppercase;
+        }
+
+        .result-body {
+            padding: 1.4rem;
+            overflow-x: auto;
+        }
+
+        .euler-meta {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+        }
+
+        .meta-chip {
+            background: rgba(56,189,248,0.08);
+            border: 1px solid rgba(56,189,248,0.2);
+            border-radius: 8px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.75rem;
+            color: var(--accent2);
+        }
+
+        .euler-table-scroll {
+            overflow-x: auto;
+            border-radius: 10px;
+            border: 1px solid var(--border2);
+        }
+
+        table.euler-tbl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            min-width: 680px;
+        }
+
+        table.euler-tbl thead tr {
+            background: #0a1624;
+        }
+
+        table.euler-tbl th {
+            padding: 10px 14px;
+            color: var(--muted);
+            font-weight: 400;
+            font-size: 0.68rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            text-align: center;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border2);
+        }
+
+        table.euler-tbl td {
+            padding: 8px 14px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.1s;
+        }
+
+        table.euler-tbl tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        table.euler-tbl tbody tr:hover td {
+            background: rgba(56,189,248,0.04);
+        }
+
+        table.euler-tbl td:nth-child(1) {
+            color: var(--muted);
+            font-size: 0.75rem;
+        }
+        table.euler-tbl td:nth-child(2) { color: #93c5fd; }
+        table.euler-tbl td:nth-child(3) { color: var(--green); font-weight: 600; }
+        table.euler-tbl td:nth-child(4) { color: #fbbf24; }
+        table.euler-tbl td:nth-child(5) { color: #c084fc; }
+        table.euler-tbl td:nth-child(6) { color: var(--accent); font-weight: 600; }
+
+        table.euler-tbl tr.last-row td { background: rgba(34,211,238,0.04); }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .pg-info {
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+
+        .pg-btns {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .pg-btn {
+            background: var(--bg);
+            border: 1px solid var(--border2);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 0.3rem 0.7rem;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .pg-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .pg-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .pg-btn.active {
+            background: rgba(56,189,248,0.15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 380px;
+            width: 100%;
+        }
+
+        .point-grid {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 0.5rem 0;
+        }
+
+        .point-box {
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            text-align: center;
+            min-width: 200px;
+        }
+        .point-box.euler  { background: rgba(251,146,60,0.08);  border: 1px solid rgba(251,146,60,0.25); }
+        .point-box.sym    { background: rgba(52,211,153,0.08);  border: 1px solid rgba(52,211,153,0.25); }
+
+        .point-label {
+            font-size: 0.62rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 0.4rem;
+        }
+        .point-box.euler .point-label { color: var(--orange); }
+        .point-box.sym   .point-label { color: var(--green);  }
+
+        .point-value {
+            font-size: 1.6rem;
+            font-weight: 600;
+        }
+        .point-box.euler .point-value { color: var(--orange); }
+        .point-box.sym   .point-value { color: var(--green);  }
+
+        .examples-section { margin-top: 3rem; }
+
+        .examples-title {
+            font-size: 0.7rem;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .example-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.9rem 1.1rem;
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .example-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        .example-card code {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--accent2);
+            margin-bottom: 0.25rem;
+        }
+        .example-card small { color: var(--muted); font-size: 0.72rem; }
+
+        .error-block {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 12px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #fca5a5;
+            font-size: 0.85rem;
+        }
+
+        .error-label {
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #f87171;
+            margin-bottom: 0.4rem;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 4rem;
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+    </style>
 </head>
 <body>
-
 <div class="page">
 
+    <!-- ── HEADER ──────────────────────────────────────── -->
     <header>
-        <p class="header-sub">SOLVER INTELIGENTE</p>
+        <p class="header-sub">Solver Inteligente</p>
         <h1 class="header-title">
-            Resuelve ecuaciones diferenciales<br>
-            <span style="color:#60a5fa;">de forma inteligente</span>
+            Ecuaciones Diferenciales<br>
+            <span style="color:var(--accent);">Método de Euler</span>
         </h1>
     </header>
 
+    <!-- ── FORMULARIO ──────────────────────────────────── -->
     <div class="form-card">
-
         <form method="POST">
 
             <div class="input-row">
-                <input
-                    type="text"
-                    name="equation"
-                    class="input-main"
-                    placeholder="Ej: y' + y = 0  —  y'' - 4y = 0  —  y' + y = sin(x)"
-                    required
-                    value="{{ request.form.get('equation', '') }}"
-                >
-                <input
-                    type="text"
-                    name="initials"
-                    class="input-main"
-                    placeholder="Condiciones iniciales: y(0)=693.36; y'(0)=0"
-                    value="{{ request.form.get('initials', '') }}"
-                >
+                <input type="text" name="equation" class="input-main"
+                    placeholder="Ej: y' + y = 0  |  y'' - 4y = 0  |  y' = x + y"
+                    required value="{{ request.form.get('equation', '') }}">
+                <input type="text" name="initials" class="input-main"
+                    placeholder="Cond. iniciales: y(0)=1; y'(0)=0"
+                    value="{{ request.form.get('initials', '') }}">
             </div>
 
             <div class="range-row">
                 <div class="range-field">
-                    <label>x start</label>
-                    <input type="text" name="x_start" placeholder="0" value="{{ request.form.get('x_start', '') }}">
+                    <label>x inicio</label>
+                    <input type="text" name="x_start" placeholder="0"
+                        value="{{ request.form.get('x_start', '') }}">
                 </div>
                 <div class="range-field">
-                    <label>x end</label>
-                    <input type="text" name="x_end" placeholder="10" value="{{ request.form.get('x_end', '') }}">
+                    <label>x fin</label>
+                    <input type="text" name="x_end" placeholder="10"
+                        value="{{ request.form.get('x_end', '') }}">
+                </div>
+                <div class="range-field">
+                    <label>Pasos (n)</label>
+                    <input type="text" name="n_steps" placeholder="10"
+                        value="{{ n_steps_val if n_steps_val else '10' }}">
                 </div>
                 <div class="range-field">
                     <label>Evaluar en x =</label>
-                    <input
-                        type="text"
-                        name="x_eval"
-                        placeholder="Ej: 4"
-                        value="{{ request.form.get('x_eval', '') }}"
-                    >
+                    <input type="text" name="x_eval" placeholder="Ej: 4"
+                        value="{{ request.form.get('x_eval', '') }}">
                 </div>
             </div>
 
-            <button class="btn-solve" type="submit">Resolver</button>
-
+            <button class="btn-solve" type="submit">Resolver con Euler →</button>
         </form>
-
     </div>
 
-    <!-- SOLUCIÓN GENERAL SIMBÓLICA -->
+    <!-- ── ERROR ───────────────────────────────────────── -->
+    {% if solution %}
+    <div class="error-block">
+        <div class="error-label">Error</div>
+        {{ solution }}
+    </div>
+    {% endif %}
+
+    <!-- ── SOLUCIÓN GENERAL ────────────────────────────── -->
     {% if solution_latex %}
     <div class="result-block">
         <div class="result-header">
-            <span class="result-title">Solución general:</span>
+            <span class="result-title">Solución general</span>
             <span class="result-badge">simbólica ✓</span>
         </div>
         <div class="result-body">
-            \[ {{ solution_latex|safe }} \]
+            $$ {{ solution_latex|safe }} $$
         </div>
     </div>
-    {% elif solution %}
+    {% endif %}
+
+    <!-- ── SOLUCIÓN PARTICULAR ─────────────────────────── -->
+    {% if particular_latex %}
+    <div class="result-block" style="border-color:#22d3ee33;">
+        <div class="result-header">
+            <span class="result-title">Solución particular</span>
+            <span class="result-badge" style="background:rgba(34,211,238,0.1);color:#22d3ee;border-color:rgba(34,211,238,0.3);">
+                condiciones iniciales aplicadas ✓
+            </span>
+        </div>
+        <div class="result-body">
+            $$ {{ particular_latex|safe }} $$
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════
+         TABLA DE ITERACIONES EULER
+    ══════════════════════════════════════════════════ -->
+    {% if euler_table %}
     <div class="result-block">
         <div class="result-header">
-            <span class="result-title">Respuesta procesada:</span>
+            <span class="result-title">Iteraciones — Método de Euler</span>
             <span class="result-badge">numérica ✓</span>
         </div>
         <div class="result-body">
-            <pre class="result-text">{{ solution }}</pre>
+
+            <!-- meta chips -->
+            <div class="euler-meta">
+                {% if h_step is not none %}
+                <span class="meta-chip">h = {{ h_step }}</span>
+                {% endif %}
+                <span class="meta-chip">n = {{ euler_table|length - 1 }} pasos</span>
+                <span class="meta-chip" style="color:#93c5fd;border-color:rgba(147,197,253,0.3);background:rgba(147,197,253,0.06);">
+                    y<sub>i+1</sub> = y<sub>i</sub> + h · f(x<sub>i</sub>, y<sub>i</sub>)
+                </span>
+            </div>
+
+            <!-- tabla con paginación JS -->
+            <div class="euler-table-scroll">
+                <table class="euler-tbl" id="eulerTable">
+                    <thead>
+                        <tr>
+                            <th>i</th>
+                            <th>xᵢ</th>
+                            <th>yᵢ</th>
+                            <th>f(xᵢ, yᵢ)</th>
+                            <th>h · f(xᵢ, yᵢ)</th>
+                            <th>yᵢ₊₁</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eulerBody">
+                        <!-- llenado por JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" id="pagination"></div>
         </div>
     </div>
+
+    <!-- datos en JSON para paginación -->
+    <script>
+        const EULER_ROWS = JSON.parse('{{ euler_table | tojson | safe }}');
+        const PAGE_SIZE  = 15;
+        let currentPage  = 0;
+
+        function totalPages() {
+            return Math.ceil(EULER_ROWS.length / PAGE_SIZE);
+        }
+
+        function renderTable(page) {
+            const tbody = document.getElementById('eulerBody');
+            const start = page * PAGE_SIZE;
+            const slice = EULER_ROWS.slice(start, start + PAGE_SIZE);
+
+            tbody.innerHTML = slice.map(row => {
+                const isLast = row.fi === null;
+                const cls    = isLast ? ' class="last-row"' : '';
+                const fi     = isLast ? '—' : row.fi;
+                const hfi    = isLast ? '—' : row.hfi;
+                const yi1    = isLast ? '—' : row.yi1;
+                return `<tr${cls}>
+                    <td>${row.i}</td>
+                    <td>${row.xi}</td>
+                    <td>${row.yi}</td>
+                    <td>${fi}</td>
+                    <td>${hfi}</td>
+                    <td>${yi1}</td>
+                </tr>`;
+            }).join('');
+
+            renderPagination(page);
+        }
+
+        function renderPagination(page) {
+            const total = totalPages();
+            const pg    = document.getElementById('pagination');
+
+            if (total <= 1) { pg.innerHTML = ''; return; }
+
+            const start = page * PAGE_SIZE + 1;
+            const end   = Math.min((page + 1) * PAGE_SIZE, EULER_ROWS.length);
+
+            let btns = '';
+            // Prev
+            btns += `<button class="pg-btn" onclick="goPage(${page-1})" ${page===0?'disabled':''}>← Ant</button>`;
+
+            // Páginas numéricas (máx 5 visibles)
+            const range = 2;
+            for (let p = 0; p < total; p++) {
+                if (p === 0 || p === total-1 || (p >= page-range && p <= page+range)) {
+                    btns += `<button class="pg-btn${p===page?' active':''}" onclick="goPage(${p})">${p+1}</button>`;
+                } else if (p === page-range-1 || p === page+range+1) {
+                    btns += `<span style="color:var(--muted);padding:0 4px;">…</span>`;
+                }
+            }
+
+            // Next
+            btns += `<button class="pg-btn" onclick="goPage(${page+1})" ${page===total-1?'disabled':''}>Sig →</button>`;
+
+            pg.innerHTML = `
+                <span class="pg-info">Filas ${start}–${end} de ${EULER_ROWS.length}</span>
+                <div class="pg-btns">${btns}</div>`;
+        }
+
+        function goPage(p) {
+            const total = totalPages();
+            currentPage = Math.max(0, Math.min(p, total-1));
+            renderTable(currentPage);
+        }
+
+        // Inicializar tabla
+        renderTable(0);
+    </script>
     {% endif %}
 
-    <!-- SOLUCIÓN PARTICULAR (con condiciones iniciales) -->
-    {% if particular_latex %}
-    <div class="result-block" style="border-color: #22c55e;">
+    <!-- ══════════════════════════════════════════════════
+         GRÁFICA INTERACTIVA (Chart.js)
+    ══════════════════════════════════════════════════ -->
+    {% if chart_data_json and chart_data_json != 'null' %}
+    <div class="result-block">
         <div class="result-header">
-            <span class="result-title">Solución particular:</span>
-            <span class="result-badge" style="background: rgba(34,197,94,0.15); color:#22c55e; border:1px solid rgba(34,197,94,0.3);">C resuelto con condiciones iniciales ✓</span>
+            <span class="result-title">Gráfica — Solución numérica</span>
+            <span class="result-badge">Chart.js · interactivo</span>
         </div>
         <div class="result-body">
-            \[ {{ particular_latex|safe }} \]
-            <small style="color:#64748b; display:block; margin-top:0.5rem;">
-                La constante fue determinada usando las condiciones iniciales proporcionadas.
-            </small>
+            <div class="chart-container">
+                <canvas id="eulerChart"></canvas>
+            </div>
         </div>
     </div>
-    {% elif solution_latex and not particular_latex and request.form.get('initials') %}
-    <div class="result-block" style="border-color: #f97316;">
-        <div class="result-header">
-            <span class="result-title">Aviso:</span>
-            <span class="result-badge" style="color:#f97316;">condiciones iniciales</span>
-        </div>
-        <div class="result-body">
-            <small style="color:#94a3b8;">No se pudo aplicar la condición inicial a la solución simbólica. Se usó en la simulación numérica de Euler.</small>
-        </div>
-    </div>
+
+    <script>
+    (function() {
+        const raw = JSON.parse('{{ chart_data_json | safe }}');
+        if (!raw) return;
+
+        const ctx = document.getElementById('eulerChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: raw.xs,
+                datasets: [{
+                    label: 'y(x) — Euler',
+                    data: raw.ys,
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56,189,248,0.08)',
+                    borderWidth: 2.5,
+                    pointRadius: raw.xs.length <= 30 ? 4 : 0,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#38bdf8',
+                    tension: 0.3,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 600, easing: 'easeInOutQuart' },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#94a3b8',
+                            font: { family: "'JetBrains Mono', monospace", size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#0d1a2d',
+                        borderColor: '#1a2d45',
+                        borderWidth: 1,
+                        titleColor: '#38bdf8',
+                        bodyColor: '#c8d8e8',
+                        titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
+                        bodyFont:  { family: "'JetBrains Mono', monospace", size: 11 },
+                        callbacks: {
+                            title: items => `x = ${items[0].label}`,
+                            label: item  => `y = ${item.raw}`,
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: '#4a6580',
+                            font: { family: "'JetBrains Mono', monospace", size: 10 },
+                            maxTicksLimit: 12,
+                        },
+                        grid: { color: '#1a2d45' },
+                        title: {
+                            display: true,
+                            text: 'x',
+                            color: '#4a6580',
+                            font: { family: "'JetBrains Mono', monospace", size: 11 }
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            color: '#4a6580',
+                            font: { family: "'JetBrains Mono', monospace", size: 10 },
+                        },
+                        grid: { color: '#1a2d45' },
+                        title: {
+                            display: true,
+                            text: 'y(x)',
+                            color: '#4a6580',
+                            font: { family: "'JetBrains Mono', monospace", size: 11 }
+                        }
+                    }
+                }
+            }
+        });
+    })();
+    </script>
     {% endif %}
 
-    <!-- PUNTO EVALUADO -->
+    <!-- ── PUNTO EVALUADO ──────────────────────────────── -->
     {% if point_result %}
-    <div class="result-block" style="border-color: #f97316;">
+    <div class="result-block" style="border-color:rgba(251,146,60,0.3);">
         <div class="result-header">
-            <span class="result-title">Punto evaluado:</span>
-            <span class="result-badge" style="background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.3);">y({{ point_result.x }}) ✓</span>
+            <span class="result-title">Punto evaluado</span>
+            <span class="result-badge" style="background:rgba(251,146,60,0.1);color:var(--orange);border-color:rgba(251,146,60,0.3);">
+                x = {{ point_result.x }}
+            </span>
         </div>
         <div class="result-body">
             {% if point_result.y is not none %}
-                <div style="display:flex; flex-direction:column; align-items:center; gap:1rem; padding:1rem 0;">
-
-                    <!-- Simbólico (solución particular) -->
-                    {% if point_result.y_symbolic is not none %}
-                    <div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.25); border-radius:12px; padding:1rem 2rem; text-align:center;">
-                        <div style="font-size:0.65rem; color:#22c55e; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.4rem;">Solución Particular (Simbólica)</div>
-                        <span style="font-size:1.8rem; color:#22c55e; font-family:'JetBrains Mono', monospace; font-weight:600;">
-                            y({{ point_result.x }}) = {{ point_result.y_symbolic }}
-                        </span>
-                        <div style="font-size:0.7rem; color:#64748b; margin-top:0.3rem;">con C resuelto desde condiciones iniciales</div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Numérico (Euler) -->
-                    <div style="background:rgba(249,115,22,0.08); border:1px solid rgba(249,115,22,0.25); border-radius:12px; padding:1rem 2rem; text-align:center;">
-                        <div style="font-size:0.65rem; color:#f97316; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.4rem;">Método de Euler (Numérico)</div>
-                        <span style="font-size:1.8rem; color:#f97316; font-family:'JetBrains Mono', monospace; font-weight:600;">
-                            y({{ point_result.x }}) ≈ {{ point_result.y }}
-                        </span>
-                    </div>
+            <div class="point-grid">
+                <div class="point-box euler">
+                    <div class="point-label">Método de Euler</div>
+                    <div class="point-value">y({{ point_result.x }}) ≈ {{ point_result.y }}</div>
                 </div>
+                {% if point_result.y_symbolic is not none %}
+                <div class="point-box sym">
+                    <div class="point-label">Solución Particular (Exacta)</div>
+                    <div class="point-value">y({{ point_result.x }}) = {{ point_result.y_symbolic }}</div>
+                </div>
+                {% endif %}
+            </div>
             {% else %}
-                <div class="error-msg" style="padding:0.8rem;">
-                    ⚠ {{ point_result.error }}
-                </div>
+            <div class="error-block" style="margin:0;">⚠ {{ point_result.error }}</div>
             {% endif %}
         </div>
     </div>
     {% endif %}
 
-    {% if error %}
-    <div class="error-block">
-        <div class="error-label">algo salió mal</div>
-        <div class="error-msg">{{ error }}</div>
-    </div>
-    {% endif %}
-
-    {% if plot_path %}
-    <div class="plot-block">
-        {% if table_data %}
-        <div class="result-block">
-            <div class="result-header">
-                <span class="result-title">Tabla — Método de Euler</span>
-                <span class="result-badge">numérica ✓</span>
-            </div>
-            <div class="result-body" style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:0.9rem;">
-                    <thead>
-                        <tr style="background:#1e293b; color:#e2e8f0;">
-                            <th style="padding:8px;">i</th>
-                            <th style="padding:8px;">x</th>
-                            <th style="padding:8px;">y</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in table_data %}
-                        <tr style="border-bottom:1px solid #1e293b;">
-                            <td style="padding:6px; text-align:center;">{{ row.i }}</td>
-                            <td style="padding:6px; text-align:center;">{{ row.x }}</td>
-                            <td style="padding:6px; text-align:center; color:#38bdf8;">{{ row.y }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {% endif %}
-        <div class="plot-header">
-            <span class="plot-title">Gráfica — solución numérica</span>
-        </div>
-        <div class="plot-body">
-            <img src="{{ plot_path }}" alt="Solución numérica">
-        </div>
-    </div>
-    {% endif %}
-
+    <!-- ── EJEMPLOS ────────────────────────────────────── -->
     <div class="examples-section">
         <p class="examples-title">Ejemplos que puedes probar:</p>
         <div class="examples-grid">
-            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=693.36">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1" data-n="10">
                 <code>y' - y = 0</code>
-                <small>con y(0)=693.36</small>
+                <small>crecimiento exponencial</small>
             </div>
-            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1" data-n="10">
                 <code>y' + y = 0</code>
                 <small>decaimiento exponencial</small>
             </div>
-            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=0; y'(0)=1">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=0; y'(0)=1" data-n="20">
                 <code>y'' - 4y = 0</code>
                 <small>oscilador libre</small>
             </div>
-            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=0">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=0" data-n="15">
                 <code>y' + y = sin(x)</code>
                 <small>forzada de 1er orden</small>
             </div>
-            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1; y'(0)=0">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1; y'(0)=0" data-n="20">
                 <code>y'' + y = exp(x)</code>
                 <small>forzada de 2do orden</small>
             </div>
-            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1; y'(0)=0">
+            <div class="example-card" onclick="setEq(this)" data-ic="y(0)=1; y'(0)=0" data-n="20">
                 <code>y'' + 2y' + y = 0</code>
                 <small>amortiguamiento crítico</small>
             </div>
         </div>
     </div>
 
-    <footer>
-        hecho con sympy · scipy · matplotlib
-    </footer>
+    <footer>hecho con sympy · numpy · chart.js</footer>
 
 </div>
 
 <script>
     function setEq(el) {
-        const code = el.querySelector('code').textContent;
+        document.querySelector('input[name="equation"]').value = el.querySelector('code').textContent;
         const ic = el.getAttribute('data-ic') || '';
-        document.querySelector('input[name="equation"]').value = code;
-        if (ic) {
-            document.querySelector('input[name="initials"]').value = ic;
-        }
-        document.querySelector('input[name="equation"]').focus();
+        const n  = el.getAttribute('data-n')  || '10';
+        if (ic) document.querySelector('input[name="initials"]').value = ic;
+        document.querySelector('input[name="n_steps"]').value = n;
     }
 </script>
-
 </body>
 </html>

@@ -8,6 +8,7 @@ from sympy.parsing.sympy_parser import (
 )
 import re
 import numpy as np
+import json
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -62,6 +63,7 @@ def replace_functions(s: str) -> str:
         r'\bsen\b': 'sin', r'\bSin\b': 'sin',
         r'\bCos\b': 'cos', r'\bTan\b': 'tan',
         r'\bExp\b': 'exp', r'\bln\b':  'log',
+        r'\bIn\b': 'log', r'\bLn\b': 'log',  # Variantes de logaritmo natural
     }
     for pat, repl in aliases.items():
         s = re.sub(pat, repl, s)
@@ -226,14 +228,14 @@ def euler_solve(f_system, x0: float, y0: list, x_end: float, n_steps: int = 1000
         ys[i + 1] = ys[i] + h * np.array(dY)
         xs[i + 1] = xs[i] + h
 
-    return xs, ys
+    return xs, ys, h
 
 
 # ============================================================
 #  SOLUCIÓN NUMÉRICA + GRÁFICA
 # ============================================================
 
-def numeric_solve_and_plot(eq: Eq, x_span=(0, 10), y0_override=None):
+def numeric_solve_and_plot(eq: Eq, x_span=(0, 10), y0_override=None, n_steps=100):
     x = symbols('x')
     y = Function('y')
 
@@ -279,7 +281,34 @@ def numeric_solve_and_plot(eq: Eq, x_span=(0, 10), y0_override=None):
         y0 = [1.0] + [0.0] * (max_order - 1)
 
     x0 = x_span[0]
-    xs, ys = euler_solve(f_system, x0, y0, x_span[1])
+    xs, ys, h = euler_solve(f_system, x0, y0, x_span[1], n_steps=n_steps)
+
+    # ── Tabla de iteraciones ────────────────────────────────
+    euler_table = []
+    for i in range(len(xs)):
+        row = {
+            'i': i,
+            'xi': round(float(xs[i]), 6),
+            'yi': round(float(ys[i][0]), 6),
+        }
+        
+        if i < len(xs) - 1:
+            # Calcular f(xi, yi)
+            dY_vec = f_system(xs[i], ys[i])
+            fi = round(float(dY_vec[0]), 6)
+            hfi = round(float(h * dY_vec[0]), 6)
+            yi1 = round(float(ys[i + 1][0]), 6)
+            
+            row['fi'] = fi
+            row['hfi'] = hfi
+            row['yi1'] = yi1
+        else:
+            # Última fila: sin f, hf, yi+1
+            row['fi'] = None
+            row['hfi'] = None
+            row['yi1'] = None
+
+        euler_table.append(row)
 
     # ── Gráfica ───────────────────────────────────────────────
     plt.figure(facecolor='#0f172a')
@@ -299,7 +328,16 @@ def numeric_solve_and_plot(eq: Eq, x_span=(0, 10), y0_override=None):
     plt.savefig(path, bbox_inches='tight', facecolor='#0f172a')
     plt.close()
 
-    return f"plots/{filename}", xs, ys
+    # ── Datos para gráfica con Chart.js ────────────────────
+    chart_data = {
+        'xs': [round(float(x), 4) for x in xs],
+        'ys': [round(float(y), 4) for y in ys[:, 0]],
+    }
+    
+    import json
+    chart_data_json = json.dumps(chart_data)
+
+    return f"plots/{filename}", xs, ys, euler_table, h, chart_data_json
 
 
 # ============================================================
@@ -312,18 +350,37 @@ def index():
     solution_latex  = None
     particular_latex = None
     plot_path       = None
-    table_data      = None
+    euler_table     = None
+    h_step          = None
+    chart_data_json = None
     point_result    = None
     solution_method = None
     initials_parsed = {}
 
     if request.method == 'POST':
         try:
-            eq_input     = request.form.get('equation', '')
-            x_eval       = request.form.get('x_eval', '')
-            initials_str = request.form.get('initials', '')
-            x_start      = float(request.form.get('x_start') or 0)
-            x_end        = float(request.form.get('x_end')   or 10)
+            eq_input     = request.form.get('equation', '').strip()
+            x_eval       = request.form.get('x_eval', '').strip()
+            initials_str = request.form.get('initials', '').strip()
+            
+            # Validar que la ecuación no esté vacía
+            if not eq_input:
+                raise ValueError("La ecuación no puede estar vacía")
+            
+            try:
+                x_start = float(request.form.get('x_start', '0') or '0')
+            except ValueError:
+                x_start = 0
+                
+            try:
+                x_end = float(request.form.get('x_end', '10') or '10')
+            except ValueError:
+                x_end = 10
+                
+            try:
+                n_steps = int(request.form.get('n_steps', '100') or '100')
+            except ValueError:
+                n_steps = 100
 
             eq = parse_human_input(eq_input)
 
@@ -364,20 +421,10 @@ def index():
                 solution_method = "Solución Numérica (Método de Euler)"
 
             # ── Euler ──────────────────────────────────────────────────────
-            plot, xs, ys = numeric_solve_and_plot(
-                eq, (x_start, x_end), y0_override=y0_for_euler
+            plot, xs, ys, euler_table, h_step, chart_data_json = numeric_solve_and_plot(
+                eq, (x_start, x_end), y0_override=y0_for_euler, n_steps=n_steps
             )
             plot_path = url_for('static', filename=plot)
-
-            # Tabla (máx 100 filas)
-            table_data = []
-            step = max(1, len(xs) // 100)
-            for i in range(0, len(xs), step):
-                table_data.append({
-                    'i': i,
-                    'x': round(float(xs[i]),    4),
-                    'y': round(float(ys[i][0]), 4),
-                })
 
             # Punto evaluado
             if x_eval and x_eval.strip():
@@ -422,10 +469,13 @@ def index():
         solution_latex   = solution_latex,
         particular_latex = particular_latex,
         plot_path        = plot_path,
-        table_data       = table_data,
+        euler_table      = euler_table,
+        h_step           = h_step,
+        chart_data_json  = chart_data_json,
         point_result     = point_result,
         solution_method  = solution_method,
         initials_parsed  = initials_parsed,
+        n_steps_val      = request.form.get('n_steps', '100') if request.method == 'POST' else '',
     )
 
 
